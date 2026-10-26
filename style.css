@@ -1,0 +1,33 @@
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    overscroll-behavior: none;
+  }
+  main > :first-child { margin-top: 0 !important; }
+  main > :last-child { margin-bottom: 0 !important; }
+  
+  /* Garantir nitidez cristalina absoluta sem filtros ou desfoques em foco ou clique */
+  *, *::before, *::after {
+    -webkit-tap-highlight-color: transparent;
+  }
+  *:focus, *:active, *:focus-visible, button:focus, button:active, a:focus, a:active, input:focus, input:active {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none;
+  }
+}
+::-webkit-scrollbar { display: none; }
+
+@keyframes laserScan {
+  0% { top: 6%; opacity: 0.9; }
+  50% { top: 92%; opacity: 1; }
+  100% { top: 6%; opacity: 0.9; }
+}
+.animate-laser {
+  animation: laserScan 2.4s ease-in-out infinite;
+}
