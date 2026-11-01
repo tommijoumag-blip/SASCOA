@@ -75,71 +75,82 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
-    // Iniciar Câmera Real com Html5Qrcode
-    async function startCamera() {
-        cameraFallback.classList.add('hidden');
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
-        cameraText.textContent = 'Iniciando câmera...';
+    // Substitua as funções startCamera e stopCamera do arquivo anterior por estas:
 
-        try {
-            // Cria a instância apontando para a div do HTML
-            html5QrCode = new Html5Qrcode("camera-stream");
+let videoStreamTrack = null;
+let scanInterval = null;
 
-            // E adicione logo abaixo dela esta configuração para forçar o elemento a aparecer:
-            document.getElementById("camera-stream").innerHTML = "";
-            
-            const config = { 
-                fps: 10, 
-                qrbox: ( width, height ) => {
-                    const minEdge = Math.min(width, height);
-                    const qrboxSize = Math.floor(minEdge * 0.7);
-                    return { width: qrboxSize, height: qrboxSize };
-                }
-            };
+async function startCamera() {
+    cameraFallback.classList.add('hidden');
+    cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+    cameraText.textContent = 'Iniciando câmera...';
 
-            await html5QrCode.start(
-                { facingMode: "environment" }, // Prioriza câmera traseira em celulares
-                config,
-                (decodedText) => {
-                    // Executa ao ler um QR Code válido
-                    handleScanSuccess(decodedText);
-                }
-            );
+    const videoElem = document.getElementById('camera-stream');
 
-            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
-            cameraText.textContent = 'Câmera Ativa';
-            cameraDeviceLabel.textContent = 'Buscando QR Code...';
+    try {
+        // Liga a câmera nativamente apontando para o seu elemento <video>
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        });
+        
+        videoElem.srcObject = stream;
+        videoElem.play().catch(() => {});
+        
+        // Guarda a track para conseguir desligar depois
+        videoStreamTrack = stream.getVideoTracks()[0];
 
-        } catch (err) {
-            console.error('Falha ao iniciar câmera real:', err);
-            cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
-            cameraFallbackDesc.textContent = 'Verifique se concedeu acesso à câmera e se está utilizando conexão HTTPS segura.';
-            cameraFallback.classList.remove('hidden');
-            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
-            cameraText.textContent = 'Acesso negado';
-        }
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
+        cameraText.textContent = 'Câmera Ativa';
+        cameraDeviceLabel.textContent = 'Buscando QR Code...';
+
+        // Cria o leitor em segundo plano usando o seu elemento <video>
+        html5QrCode = new Html5Qrcode("camera-stream");
+
+        // Cria um loop que tenta ler o frame do vídeo a cada 300ms
+        scanInterval = setInterval(() => {
+            if (html5QrCode && videoElem.readyState === videoElem.HAVE_CURRENT_DATA) {
+                html5QrCode.scanFile(videoElem)
+                    .then((decodedText) => {
+                        clearInterval(scanInterval);
+                        handleScanSuccess(decodedText);
+                    })
+                    .catch(() => {
+                        // Ignora erros de leitura enquanto procura o QR Code no frame
+                    });
+            }
+        }, 300);
+
+    } catch (err) {
+        console.error('Falha ao iniciar câmera com elemento video:', err);
+        cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
+        cameraFallbackDesc.textContent = 'Se certifique de aceitar os termos de uso da câmera no navegador.';
+        cameraFallback.classList.remove('hidden');
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
+        cameraText.textContent = 'Acesso negado';
     }
+}
 
-    // Parar Câmera Real
     function stopCamera() {
-        if (html5QrCode && html5QrCode.isScanning) {
-            html5QrCode.stop().then(() => {
-                html5QrCode = null;
-            }).catch(err => console.warn("Erro ao parar scanner:", err));
-        }
-        if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
+    // Para o loop de varredura
+    if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+    }
+    
+    // Desliga a luz da câmera fisicamente
+    if (videoStreamTrack) {
+        videoStreamTrack.stop();
+        videoStreamTrack = null;
     }
 
-    // Abrir e Fechar Modal
-    function openQrModal() {
-        modalQr.classList.remove('hidden');
-        startCamera();
+    const videoElem = document.getElementById('camera-stream');
+    if (videoElem) {
+        videoElem.srcObject = null;
     }
 
-    function closeQrModal() {
-        modalQr.classList.add('hidden');
-        stopCamera();
-    }
+    if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
+}
 
     // Processar sucesso da leitura (Real ou Simulada)
     function handleScanSuccess(rawData) {
