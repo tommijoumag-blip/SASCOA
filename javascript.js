@@ -84,6 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Cria a instância apontando para a div do HTML
             html5QrCode = new Html5Qrcode("camera-stream");
+
+            // E adicione logo abaixo dela esta configuração para forçar o elemento a aparecer:
+            document.getElementById("camera-stream").innerHTML = ""; 
             
             const config = { 
                 fps: 15, 
