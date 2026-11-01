@@ -31,3 +31,11 @@
 .animate-laser {
   animation: laserScan 2.4s ease-in-out infinite;
 }
+@keyframes flashSuccess {
+  0% { opacity: 0; }
+  40% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.animate-flash {
+  animation: flashSuccess 0.45s ease-out forwards;
+}
