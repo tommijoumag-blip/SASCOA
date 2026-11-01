@@ -43,8 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnClosePrivacy = document.getElementById('btn-close-privacy');
     const btnModalPrivacyOk = document.getElementById('btn-modal-privacy-ok');
 
-    // Variável Global para controlar a instância do scanner real
-    let html5QrCode = null;
+    // Variáveis Globais de Controle da Câmera
+    let html5QrCodeInstance = null;
+    let localVideoStream = null;
+    let scanInterval = null;
 
     // Toast Notification
     function showToast(message) {
@@ -75,88 +77,90 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
-    // Substitua as funções startCamera e stopCamera do arquivo anterior por estas:
+    // Iniciar Câmera Nativa com elemento <video>
+    async function startCamera() {
+        cameraFallback.classList.add('hidden');
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+        cameraText.textContent = 'Iniciando câmera...';
 
-let videoStreamTrack = null;
-let scanInterval = null;
+        const videoElem = document.getElementById('camera-stream');
 
-async function startCamera() {
-    cameraFallback.classList.add('hidden');
-    cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
-    cameraText.textContent = 'Iniciando câmera...';
+        try {
+            // Liga o fluxo de mídia diretamente no seu <video>
+            localVideoStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            
+            videoElem.srcObject = localVideoStream;
+            videoElem.play().catch(() => {});
 
-    const videoElem = document.getElementById('camera-stream');
+            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
+            cameraText.textContent = 'Câmera Ativa';
+            cameraDeviceLabel.textContent = 'Buscando QR Code...';
 
-    try {
-        // Liga a câmera nativamente apontando para o seu elemento <video>
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false
-        });
-        
-        videoElem.srcObject = stream;
-        videoElem.play().catch(() => {});
-        
-        // Guarda a track para conseguir desligar depois
-        videoStreamTrack = stream.getVideoTracks();
+            // ATENÇÃO: Instanciação com o "Q" maiúsculo correto exigido pela biblioteca
+            html5QrCodeInstance = new Html5Qrcode("camera-stream");
 
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
-        cameraText.textContent = 'Câmera Ativa';
-        cameraDeviceLabel.textContent = 'Buscando QR Code...';
+            // Inicia a varredura lendo frames do vídeo a cada 300ms
+            scanInterval = setInterval(() => {
+                if (html5QrCodeInstance && videoElem.readyState === videoElem.HAVE_CURRENT_DATA) {
+                    html5QrCodeInstance.scanFile(videoElem)
+                        .then((decodedText) => {
+                            clearInterval(scanInterval);
+                            handleScanSuccess(decodedText);
+                        })
+                        .catch(() => {
+                            // Ignora erros de leitura frame-a-frame enquanto procura o código
+                        });
+                }
+            }, 300);
 
-        // Cria o leitor em segundo plano usando o seu elemento <video>
-        html5QrCode = new Html5Qrcode("camera-stream");
-
-        // Cria um loop que tenta ler o frame do vídeo a cada 300ms
-        scanInterval = setInterval(() => {
-            if (html5QrCode && videoElem.readyState === videoElem.HAVE_CURRENT_DATA) {
-                html5QrCode.scanFile(videoElem)
-                    .then((decodedText) => {
-                        clearInterval(scanInterval);
-                        handleScanSuccess(decodedText);
-                    })
-                    .catch(() => {
-                        // Ignora erros de leitura enquanto procura o QR Code no frame
-                    });
-            }
-        }, 300);
-
-    } catch (err) {
-        console.error('Falha ao iniciar câmera com elemento video:', err);
-        cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
-        cameraFallbackDesc.textContent = 'Se certifique de aceitar os termos de uso da câmera no navegador.';
-        cameraFallback.classList.remove('hidden');
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
-        cameraText.textContent = 'Acesso negado';
+        } catch (err) {
+            console.error('Erro ao abrir fluxo da câmera:', err);
+            cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
+            cameraFallbackDesc.textContent = 'Abra o site via Live Server (http://localhost) e permita o acesso à câmera.';
+            cameraFallback.classList.remove('hidden');
+            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
+            cameraText.textContent = 'Acesso negado';
+        }
     }
-}
 
+    // Parar Câmera de forma limpa
     function stopCamera() {
-    // Para o loop de varredura
-    if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
-    }
-    
-    // Desliga a luz da câmera fisicamente
-    if (videoStreamTrack) {
-        videoStreamTrack.stop();
-        videoStreamTrack = null;
+        if (scanInterval) {
+            clearInterval(scanInterval);
+            scanInterval = null;
+        }
+        
+        if (localVideoStream) {
+            localVideoStream.getTracks().forEach(track => track.stop());
+            localVideoStream = null;
+        }
+
+        const videoElem = document.getElementById('camera-stream');
+        if (videoElem) {
+            videoElem.srcObject = null;
+        }
+
+        html5QrCodeInstance = null;
+        if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
     }
 
-    const videoElem = document.getElementById('camera-stream');
-    if (videoElem) {
-        videoElem.srcObject = null;
+    function openQrModal() {
+        modalQr.classList.remove('hidden');
+        startCamera();
     }
 
-    if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
-}
+    function closeQrModal() {
+        modalQr.classList.add('hidden');
+        stopCamera();
+    }
 
     // Processar sucesso da leitura (Real ou Simulada)
     function handleScanSuccess(rawData) {
         playBeep();
 
-        // Tratamento para ler o formato combinado "PLACA,ORDEM" ou apenas "PLACA"
         let plateCode = rawData;
         let osCode = "";
 
@@ -165,7 +169,6 @@ async function startCamera() {
             plateCode = parts[0].trim();
             osCode = parts[1].trim();
         } else if (rawData.includes('-') && !rawData.startsWith('OS-')) {
-            // Suporte caso usem hífen (ex: BRA2E19-1234)
             const parts = rawData.split('-');
             plateCode = parts[0].trim();
             osCode = parts[1].trim();
@@ -175,7 +178,7 @@ async function startCamera() {
 
         if (scanFlash) {
             scanFlash.classList.remove('opacity-0', 'animate-flash');
-            void scanFlash.offsetWidth; // Trigger reflow
+            void scanFlash.offsetWidth;
             scanFlash.classList.add('animate-flash');
         }
 
@@ -190,7 +193,6 @@ async function startCamera() {
             closeQrModal();
             input.value = sanitizedPlate;
             
-            // Se houver uma ordem de serviço, podemos salvar temporariamente ou exibir no toast
             const msgComplemento = osCode ? ` da O.S. ${osCode}` : '';
             showToast(`Veículo ${sanitizedPlate}${msgComplemento} identificado!`);
             
@@ -219,7 +221,6 @@ async function startCamera() {
             feedbackBadge.textContent = osValue ? `${plate} (${osValue})` : plate;
         }
 
-        // Simulação dinâmica alterando o texto do status caso venha a O.S.
         const statusTextElem = feedbackBox.querySelector('p.font-bold');
         if (statusTextElem && osValue) {
             statusTextElem.innerHTML = `Status Atual: Em Execução <br><span class="text-xs text-primary font-mono">Ordem de Serviço: ${osValue}</span>`;
@@ -231,19 +232,17 @@ async function startCamera() {
 
     searchBtn.addEventListener('click', () => performSearch());
 
-    // Eventos de cliques nos botões da interface
-    if (toggleScannerBtn) toggleScannerBtn.addEventListener('click', openQrModal);
-    if (btnCloseQr) btnCloseQr.addEventListener('click', closeQrModal);
-    if (btnRetryCamera) btnRetryCamera.addEventListener('click', () => startCamera());
-    
-    if (btnFallbackManual) {
-        btnFallbackManual.addEventListener('click', () => {
-            closeQrModal();
-            input.focus();
-        });
-    }
-
-// Botão de Captura do modal (Gera dados fictícios agora seguindo o novo formato)
+    // Eventos de cliques na interface
+if (toggleScannerBtn) toggleScannerBtn.addEventListener('click', openQrModal);
+if (btnCloseQr) btnCloseQr.addEventListener('click', closeQrModal);
+if (btnRetryCamera) btnRetryCamera.addEventListener('click', () => startCamera());
+if (btnFallbackManual) {
+btnFallbackManual.addEventListener('click', () => {
+closeQrModal();
+input.focus();
+});
+}
+// Botão Captura do modal (Gera dados fictícios)
 if (btnCaptureScan) {
 btnCaptureScan.addEventListener('click', () => {
 const sampleData = [
@@ -256,7 +255,7 @@ const randomResult = sampleData[Math.floor(Math.random() * sampleData.length)];
 handleScanSuccess(randomResult);
 });
 }
-// Botão de Simulação de teste rápido
+// Botão Simular teste rápido
 if (btnSimulateScan) {
 btnSimulateScan.addEventListener('click', () => {
 handleScanSuccess('BRA2E19,OS-8831');
@@ -273,13 +272,13 @@ inputQrManual.focus();
 }
 });
 }
-// Fechar ao clicar fora dos modais
+// Fechar ao clicar fora
 window.addEventListener('click', (e) => {
 if (e.target === modalQr) closeQrModal();
 if (e.target === modalAbout) modalAbout.classList.add('hidden');
 if (e.target === modalPrivacy) modalPrivacy.classList.add('hidden');
 });
-// Fechar modais ao apertar a tecla ESC
+// Fechar modais ao apertar ESC
 window.addEventListener('keydown', (e) => {
 if (e.key === 'Escape') {
 if (!modalQr.classList.contains('hidden')) closeQrModal();
@@ -300,7 +299,7 @@ if (linkPrivacyFooter) linkPrivacyFooter.onclick = openPrivacy;
 if (linkTermsFooter) linkTermsFooter.onclick = openPrivacy;
 if (btnClosePrivacy) btnClosePrivacy.onclick = () => modalPrivacy.classList.add('hidden');
 if (btnModalPrivacyOk) btnModalPrivacyOk.onclick = () => modalPrivacy.classList.add('hidden');
-// Comportamento do botão "Voltar ao topo"
+// Botão "Voltar ao topo"
 window.addEventListener('scroll', () => {
 if (window.scrollY > 150) {
 backToTopBtn.classList.remove('opacity-0', 'pointer-events-none');
