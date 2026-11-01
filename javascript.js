@@ -86,11 +86,11 @@ document.addEventListener('DOMContentLoaded', () => {
             html5QrCode = new Html5Qrcode("camera-stream");
 
             // E adicione logo abaixo dela esta configuração para forçar o elemento a aparecer:
-            document.getElementById("camera-stream").innerHTML = ""; 
+            document.getElementById("camera-stream").innerHTML = "";
             
             const config = { 
-                fps: 15, 
-                qrbox: (width, height) => {
+                fps: 10, 
+                qrbox: ( width, height ) => {
                     const minEdge = Math.min(width, height);
                     const qrboxSize = Math.floor(minEdge * 0.7);
                     return { width: qrboxSize, height: qrboxSize };
