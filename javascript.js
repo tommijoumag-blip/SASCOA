@@ -98,7 +98,7 @@ async function startCamera() {
         videoElem.play().catch(() => {});
         
         // Guarda a track para conseguir desligar depois
-        videoStreamTrack = stream.getVideoTracks()[0];
+        videoStreamTrack = stream.getVideoTracks();
 
         cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
         cameraText.textContent = 'Câmera Ativa';
