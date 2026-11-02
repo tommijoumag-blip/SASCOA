@@ -75,6 +75,39 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
+    // Adicione apenas esta função no seu javascript.js para ativar o botão:
+async function switchCamera() {
+    const videoElem = document.getElementById('camera-stream');
+    
+    // Pega todas as mídias conectadas
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+    if (videoDevices.length > 1) {
+        // Se houver mais de uma câmera, alterna de uma para outra
+        if (activeVideoStream) {
+            activeVideoStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Pega o próximo dispositivo de vídeo da lista
+        const nextDevice = videoDevices.find(d => !activeVideoStream || !activeVideoStream.getVideoTracks()[0].label.includes(d.label));
+        
+        if (nextDevice) {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: nextDevice.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            activeVideoStream = stream;
+            videoElem.srcObject = stream;
+            videoElem.play().catch(() => {});
+            cameraDeviceLabel.textContent = nextDevice.label || "Nova Câmera Ativa";
+            return;
+        }
+    }
+    
+    showToast("Apenas uma câmera foi detectada neste dispositivo.");
+}
+
     // Iniciar Câmera Nativa com elemento <video>
     async function startCamera() {
         cameraFallback.classList.add('hidden');
