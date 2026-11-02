@@ -43,10 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnClosePrivacy = document.getElementById('btn-close-privacy');
     const btnModalPrivacyOk = document.getElementById('btn-modal-privacy-ok');
 
-    // Variáveis Globais de Controle da Câmera
-    let html5QrCodeInstance = null;
-    let localVideoStream = null;
-    let scanInterval = null;
+    // Variável Global para controlar o fluxo de mídia da câmera
+    let activeVideoStream = null;
 
     // Toast Notification
     function showToast(message) {
@@ -77,67 +75,74 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
-    // SUBSTITUA AS FUNÇÕES startCamera E stopCamera POR ESTAS NATIVAS:
+    // Iniciar Câmera Nativa com elemento <video>
+    async function startCamera() {
+        cameraFallback.classList.add('hidden');
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+        cameraText.textContent = 'Inicializando câmera...';
 
-let activeVideoStream = null;
+        const videoElem = document.getElementById('camera-stream');
 
-async function startCamera() {
-    cameraFallback.classList.add('hidden');
-    cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
-    cameraText.textContent = 'Inicializando câmera...';
+        try {
+            // Acesso direto e nativo do navegador à webcam
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { 
+                    facingMode: "environment", 
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 } 
+                },
+                audio: false
+            });
+            
+            // Armazena o fluxo de mídia para conseguir desligar depois
+            activeVideoStream = stream;
+            
+            // Vincula o stream diretamente ao elemento <video>
+            videoElem.srcObject = stream;
+            videoElem.play().catch((e) => console.log("Erro ao dar play no vídeo:", e));
 
-    const videoElem = document.getElementById('camera-stream');
+            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
+            cameraText.textContent = 'Câmera Ativa';
+            cameraDeviceLabel.textContent = 'Webcam / Câmera Principal';
 
-    try {
-        // Acesso direto e nativo do navegador à webcam
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-                facingMode: "environment", 
-                width: { ideal: 1280 }, 
-                height: { ideal: 720 } 
-            },
-            audio: false
-        });
-        
-        // Armazena o fluxo de mídia para conseguir desligar depois
-        activeVideoStream = stream;
-        
-        // Vincula o stream diretamente ao elemento <video>
-        videoElem.srcObject = stream;
-        videoElem.play().catch((e) => console.log("Erro ao dar play no vídeo:", e));
-
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
-        cameraText.textContent = 'Câmera Ativa';
-        cameraDeviceLabel.textContent = 'Webcam / Câmera Principal';
-
-    } catch (err) {
-        console.error('Erro ao acessar webcam nativa:', err);
-        cameraFallbackMsg.textContent = 'Acesso à câmera indisponível';
-        cameraFallbackDesc.textContent = 'Permita o acesso à câmera através do ícone de cadeado na barra do navegador ou clique abaixo para fechar.';
-        cameraFallback.classList.remove('hidden');
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
-        cameraText.textContent = 'Acesso negado';
-    }
-}
-
-function stopCamera() {
-    // Desliga a luz física da câmera removendo o fluxo de mídia
-    if (activeVideoStream) {
-        activeVideoStream.getTracks().forEach(track => {
-            try { track.stop(); } catch(e) {}
-        });
-        activeVideoStream = null;
+        } catch (err) {
+            console.error('Erro ao acessar webcam nativa:', err);
+            cameraFallbackMsg.textContent = 'Acesso à câmera indisponível';
+            cameraFallbackDesc.textContent = 'Permita o acesso à câmera através do ícone de cadeado na barra do navegador ou utilize os botões de simulação abaixo.';
+            cameraFallback.classList.remove('hidden');
+            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
+            cameraText.textContent = 'Acesso negado';
+        }
     }
 
-    const videoElem = document.getElementById('camera-stream');
-    if (videoElem) {
-        videoElem.srcObject = null;
+    // Parar Câmera de forma limpa
+    function stopCamera() {
+        if (activeVideoStream) {
+            activeVideoStream.getTracks().forEach(track => {
+                try { track.stop(); } catch(e) {}
+            });
+            activeVideoStream = null;
+        }
+
+        const videoElem = document.getElementById('camera-stream');
+        if (videoElem) {
+            videoElem.srcObject = null;
+        }
+
+        if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
     }
 
-    if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
-}
+    function openQrModal() {
+        modalQr.classList.remove('hidden');
+        startCamera();
+    }
 
-    // Processar sucesso da leitura (Real ou Simulada)
+    function closeQrModal() {
+        modalQr.classList.add('hidden');
+        stopCamera();
+    }
+
+    // Processar sucesso da leitura (Simulada para a apresentação)
     function handleScanSuccess(rawData) {
         playBeep();
 
@@ -158,7 +163,7 @@ function stopCamera() {
 
         if (scanFlash) {
             scanFlash.classList.remove('opacity-0', 'animate-flash');
-            void scanFlash.offsetWidth;
+            void scanFlash.offsetWidth; // Trigger reflow
             scanFlash.classList.add('animate-flash');
         }
 
@@ -212,19 +217,22 @@ function stopCamera() {
 
     searchBtn.addEventListener('click', () => performSearch());
 
-    // Eventos de cliques na interface
-if (toggleScannerBtn) toggleScannerBtn.addEventListener('click', openQrModal);
-if (btnCloseQr) btnCloseQr.addEventListener('click', closeQrModal);
-if (btnRetryCamera) btnRetryCamera.addEventListener('click', () => startCamera());
-if (btnFallbackManual) {
-btnFallbackManual.addEventListener('click', () => {
-closeQrModal();
-input.focus();
-});
-}
-// Botão Captura do modal (Gera dados fictícios)
-if (btnCaptureScan) {
-btnCaptureScan.addEventListener('click', () => {
+    // Eventos de cliques mapeados corretamente para os botões da interface
+    if (toggleScannerBtn) toggleScannerBtn.addEventListener('click', openQrModal);
+    if (btnCloseQr) btnCloseQr.addEventListener('click', closeQrModal);
+    if (btnRetryCamera) btnRetryCamera.addEventListener('click', () => startCamera());
+    
+    if (btnFallbackManual) {
+        btnFallbackManual.addEventListener('click', () => {
+            closeQrModal();
+            input.focus();
+        });
+    }
+
+    // Botão Captura do modal (Gera dados mockados perfeitos no novo formato)
+    if (btnCaptureScan) {
+        btnCaptureScan.addEventListener('click', () => {
+
 const sampleData = [
 'BRA2E19,OS-4821',
 'ABC1D23,OS-9942',
@@ -235,7 +243,7 @@ const randomResult = sampleData[Math.floor(Math.random() * sampleData.length)];
 handleScanSuccess(randomResult);
 });
 }
-// Botão Simular teste rápido
+// Botão Simular teste rápido embaixo do modal
 if (btnSimulateScan) {
 btnSimulateScan.addEventListener('click', () => {
 handleScanSuccess('BRA2E19,OS-8831');
@@ -252,13 +260,13 @@ inputQrManual.focus();
 }
 });
 }
-// Fechar ao clicar fora
+// Fechar ao clicar fora dos modais
 window.addEventListener('click', (e) => {
 if (e.target === modalQr) closeQrModal();
 if (e.target === modalAbout) modalAbout.classList.add('hidden');
 if (e.target === modalPrivacy) modalPrivacy.classList.add('hidden');
 });
-// Fechar modais ao apertar ESC
+// Fechar modais ao apertar a tecla ESC
 window.addEventListener('keydown', (e) => {
 if (e.key === 'Escape') {
 if (!modalQr.classList.contains('hidden')) closeQrModal();
