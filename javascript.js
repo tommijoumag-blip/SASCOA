@@ -77,85 +77,61 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
-    // Iniciar Câmera Nativa com elemento <video>
-    async function startCamera() {
-        cameraFallback.classList.add('hidden');
-        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
-        cameraText.textContent = 'Iniciando câmera...';
+    // SUBSTITUA AS FUNÇÕES startCamera E stopCamera POR ESTAS:
 
-        const videoElem = document.getElementById('camera-stream');
+async function startCamera() {
+    cameraFallback.classList.add('hidden');
+    cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+    cameraText.textContent = 'Iniciando câmera...';
 
-        try {
-            // Liga o fluxo de mídia diretamente no seu <video>
-            localVideoStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: false
-            });
-            
-            videoElem.srcObject = localVideoStream;
-            videoElem.play().catch(() => {});
+    try {
+        // Limpa qualquer resquício dentro da div antes de iniciar
+        document.getElementById("camera-stream").innerHTML = "";
 
-            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
-            cameraText.textContent = 'Câmera Ativa';
-            cameraDeviceLabel.textContent = 'Buscando QR Code...';
+        // Instancia a biblioteca apontando para a nossa DIV
+        html5QrCodeInstance = new Html5Qrcode("camera-stream");
 
-            // ATENÇÃO: Instanciação com o "Q" maiúsculo correto exigido pela biblioteca
-            html5QrCodeInstance = new Html5Qrcode("camera-stream");
+        const config = { 
+            fps: 10, 
+            qrbox: (width, height) => {
+                const minEdge = Math.min(width, height);
+                return { width: Math.floor(minEdge * 0.7), height: Math.floor(minEdge * 0.7) };
+            }
+        };
 
-            // Inicia a varredura lendo frames do vídeo a cada 300ms
-            scanInterval = setInterval(() => {
-                if (html5QrCodeInstance && videoElem.readyState === videoElem.HAVE_CURRENT_DATA) {
-                    html5QrCodeInstance.scanFile(videoElem)
-                        .then((decodedText) => {
-                            clearInterval(scanInterval);
-                            handleScanSuccess(decodedText);
-                        })
-                        .catch(() => {
-                            // Ignora erros de leitura frame-a-frame enquanto procura o código
-                        });
-                }
-            }, 300);
+        // O próprio método .start() cuida de pedir permissão e abrir o visor sem bloqueios!
+        await html5QrCodeInstance.start(
+            { facingMode: "environment" }, // Usa a câmera traseira em celulares
+            config,
+            (decodedText) => {
+                // Callback de sucesso ao ler o QR Code
+                handleScanSuccess(decodedText);
+            }
+        );
 
-        } catch (err) {
-            console.error('Erro ao abrir fluxo da câmera:', err);
-            cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
-            cameraFallbackDesc.textContent = 'Abra o site via Live Server (http://localhost) e permita o acesso à câmera.';
-            cameraFallback.classList.remove('hidden');
-            cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
-            cameraText.textContent = 'Acesso negado';
-        }
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
+        cameraText.textContent = 'Câmera Ativa';
+        cameraDeviceLabel.textContent = 'Buscando QR Code...';
+
+    } catch (err) {
+        console.error('Erro ao iniciar câmera com o método oficial:', err);
+        cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
+        cameraFallbackDesc.textContent = 'Abra o site via Live Server (http://localhost) e permita o acesso à câmera.';
+        cameraFallback.classList.remove('hidden');
+        cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
+        cameraText.textContent = 'Acesso negado';
     }
+}
 
-    // Parar Câmera de forma limpa
     function stopCamera() {
-        if (scanInterval) {
-            clearInterval(scanInterval);
-            scanInterval = null;
-        }
-        
-        if (localVideoStream) {
-            localVideoStream.getTracks().forEach(track => track.stop());
-            localVideoStream = null;
-        }
-
-        const videoElem = document.getElementById('camera-stream');
-        if (videoElem) {
-            videoElem.srcObject = null;
-        }
-
-        html5QrCodeInstance = null;
-        if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
+    if (html5QrCodeInstance && html5QrCodeInstance.isScanning) {
+        html5QrCodeInstance.stop().then(() => {
+            html5QrCodeInstance = null;
+            document.getElementById("camera-stream").innerHTML = "";
+        }).catch(err => console.warn("Erro ao parar o scanner:", err));
     }
-
-    function openQrModal() {
-        modalQr.classList.remove('hidden');
-        startCamera();
-    }
-
-    function closeQrModal() {
-        modalQr.classList.add('hidden');
-        stopCamera();
-    }
+    if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
+}
 
     // Processar sucesso da leitura (Real ou Simulada)
     function handleScanSuccess(rawData) {
