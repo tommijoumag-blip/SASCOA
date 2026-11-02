@@ -320,6 +320,9 @@ if (linkPrivacyFooter) linkPrivacyFooter.onclick = openPrivacy;
 if (linkTermsFooter) linkTermsFooter.onclick = openPrivacy;
 if (btnClosePrivacy) btnClosePrivacy.onclick = () => modalPrivacy.classList.add('hidden');
 if (btnModalPrivacyOk) btnModalPrivacyOk.onclick = () => modalPrivacy.classList.add('hidden');
+
+if (btnSwitchCamera) btnSwitchCamera.addEventListener('click', switchCamera);
+
 // Botão "Voltar ao topo"
 window.addEventListener('scroll', () => {
 if (window.scrollY > 150) {
