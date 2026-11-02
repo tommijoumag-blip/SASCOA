@@ -39,3 +39,10 @@
 .animate-flash {
   animation: flashSuccess 0.45s ease-out forwards;
 }
+/* Força o vídeo injetado pela biblioteca a preencher o espaço do modal */
+#camera-stream video {
+    width: 100% !important;
+    height: 100% !important;
+    object-cover: cover !important;
+    border-radius: 0.75rem;
+}
