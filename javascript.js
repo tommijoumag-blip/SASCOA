@@ -77,59 +77,63 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {}
     }
 
-    // SUBSTITUA AS FUNÇÕES startCamera E stopCamera POR ESTAS:
+    // SUBSTITUA AS FUNÇÕES startCamera E stopCamera POR ESTAS NATIVAS:
+
+let activeVideoStream = null;
 
 async function startCamera() {
     cameraFallback.classList.add('hidden');
     cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0';
-    cameraText.textContent = 'Iniciando câmera...';
+    cameraText.textContent = 'Inicializando câmera...';
+
+    const videoElem = document.getElementById('camera-stream');
 
     try {
-        // Limpa qualquer resquício dentro da div antes de iniciar
-        document.getElementById("camera-stream").innerHTML = "";
-
-        // Instancia a biblioteca apontando para a nossa DIV
-        html5QrCodeInstance = new Html5Qrcode("camera-stream");
-
-        const config = { 
-            fps: 10, 
-            qrbox: (width, height) => {
-                const minEdge = Math.min(width, height);
-                return { width: Math.floor(minEdge * 0.7), height: Math.floor(minEdge * 0.7) };
-            }
-        };
-
-        // O próprio método .start() cuida de pedir permissão e abrir o visor sem bloqueios!
-        await html5QrCodeInstance.start(
-            { facingMode: "environment" }, // Usa a câmera traseira em celulares
-            config,
-            (decodedText) => {
-                // Callback de sucesso ao ler o QR Code
-                handleScanSuccess(decodedText);
-            }
-        );
+        // Acesso direto e nativo do navegador à webcam
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+                facingMode: "environment", 
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 } 
+            },
+            audio: false
+        });
+        
+        // Armazena o fluxo de mídia para conseguir desligar depois
+        activeVideoStream = stream;
+        
+        // Vincula o stream diretamente ao elemento <video>
+        videoElem.srcObject = stream;
+        videoElem.play().catch((e) => console.log("Erro ao dar play no vídeo:", e));
 
         cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
         cameraText.textContent = 'Câmera Ativa';
-        cameraDeviceLabel.textContent = 'Buscando QR Code...';
+        cameraDeviceLabel.textContent = 'Webcam / Câmera Principal';
 
     } catch (err) {
-        console.error('Erro ao iniciar câmera com o método oficial:', err);
-        cameraFallbackMsg.textContent = 'Permissão ou suporte ausente';
-        cameraFallbackDesc.textContent = 'Abra o site via Live Server (http://localhost) e permita o acesso à câmera.';
+        console.error('Erro ao acessar webcam nativa:', err);
+        cameraFallbackMsg.textContent = 'Acesso à câmera indisponível';
+        cameraFallbackDesc.textContent = 'Permita o acesso à câmera através do ícone de cadeado na barra do navegador ou clique abaixo para fechar.';
         cameraFallback.classList.remove('hidden');
         cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0';
         cameraText.textContent = 'Acesso negado';
     }
 }
 
-    function stopCamera() {
-    if (html5QrCodeInstance && html5QrCodeInstance.isScanning) {
-        html5QrCodeInstance.stop().then(() => {
-            html5QrCodeInstance = null;
-            document.getElementById("camera-stream").innerHTML = "";
-        }).catch(err => console.warn("Erro ao parar o scanner:", err));
+function stopCamera() {
+    // Desliga a luz física da câmera removendo o fluxo de mídia
+    if (activeVideoStream) {
+        activeVideoStream.getTracks().forEach(track => {
+            try { track.stop(); } catch(e) {}
+        });
+        activeVideoStream = null;
     }
+
+    const videoElem = document.getElementById('camera-stream');
+    if (videoElem) {
+        videoElem.srcObject = null;
+    }
+
     if (scanSuccessPill) scanSuccessPill.classList.add('hidden');
 }
 
