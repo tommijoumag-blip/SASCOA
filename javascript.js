@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             cameraDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0';
             cameraText.textContent = 'Câmera Ativa';
-            cameraDeviceLabel.textContent = 'Webcam / Câmera Principal';
+            cameraDeviceLabel.textContent = 'Webcam / Câmera Principal / Câmera Frontal (dependendo do dispositivo)';
 
         } catch (err) {
             console.error('Erro ao acessar webcam nativa:', err);
